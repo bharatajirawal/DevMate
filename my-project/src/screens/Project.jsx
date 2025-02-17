@@ -55,12 +55,17 @@ const Project = () => {
 
         receiveMessage('project-message', (data) => {
             if (data.sender._id === 'ai') {
-                const message = JSON.parse(data.message);
-                webContainer?.mount(message.fileTree);
-                if (message.fileTree) {
-                    setFileTree(message.fileTree || {});
+                try {
+                    const message = JSON.parse(data.message);
+                    webContainer?.mount(message.fileTree);
+                    if (message.fileTree) {
+                        setFileTree(message.fileTree || {});
+                    }
+                    setMessages((prevMessages) => [...prevMessages, data]);
+                } catch (error) {
+                    console.error('Failed to parse AI message:', error);
+                    setMessages((prevMessages) => [...prevMessages, data]);
                 }
-                setMessages((prevMessages) => [...prevMessages, data]);
             } else {
                 setMessages((prevMessages) => [...prevMessages, data]);
             }
@@ -106,7 +111,7 @@ const Project = () => {
         
         axios
             .put('/projects/add-user', {
-                projectId: project._id, // Fixed: use project._id instead of location.state.project._id
+                projectId: project._id,
                 users: Array.from(selectedUserId),
             })
             .then((res) => {
@@ -137,7 +142,7 @@ const Project = () => {
         try {
             const messageObject = JSON.parse(message);
             return (
-                <div className="overflow-auto bg-slate-950 text-white rounded-sm p-4">
+                <div className="overflow-auto bg-slate-900 text-white rounded p-4 max-h-96">
                     <Markdown
                         children={messageObject.text}
                         options={{
@@ -150,7 +155,7 @@ const Project = () => {
             );
         } catch (error) {
             // Fallback for malformed JSON
-            return <p className="p-2">{message}</p>;
+            return <p className="p-2 whitespace-pre-wrap">{message}</p>;
         }
     };
 
@@ -174,25 +179,61 @@ const Project = () => {
         return foundUser ? foundUser.email : 'Unknown user';
     };
 
+    // Truncate email for display if too long
+    const truncateEmail = (email, maxLength = 20) => {
+        if (!email) return 'Unknown';
+        if (email.length <= maxLength) return email;
+        
+        const atIndex = email.indexOf('@');
+        if (atIndex === -1) return email.substring(0, maxLength) + '...';
+        
+        const username = email.substring(0, atIndex);
+        const domain = email.substring(atIndex);
+        
+        if (username.length <= maxLength - 3) return email;
+        return username.substring(0, maxLength - 3) + '...' + domain;
+    };
+
     return (
-        <main className="h-screen w-screen flex">
+        <main className="h-screen w-screen flex bg-slate-900 overflow-hidden">
             {/* Left Section - Chat */}
-            <section className="left relative flex flex-col h-screen min-w-96 bg-slate-800">
-                <header className="flex justify-between items-center p-3 px-4 w-full bg-slate-700 border-b border-slate-600">
-                    <button className="flex gap-2 items-center text-white" onClick={() => setIsModalOpen(true)}>
-                        <i className="ri-add-fill mr-1"></i>
-                        <p className="text-sm font-medium">Add collaborator</p>
-                    </button>
-                    <button onClick={() => setIsSidePanelOpen(!isSidePanelOpen)} className="p-2 text-white">
-                        <i className="ri-group-fill text-xl"></i>
+            <section className="left relative flex flex-col h-screen min-w-96 bg-slate-800 border-r border-slate-700">
+                <header className="flex justify-between items-center p-3 px-4 w-full bg-slate-700 border-b border-slate-600 shadow-sm">
+                    <div className="flex items-center">
+                        <h1 className="text-white font-semibold mr-4 truncate max-w-40">
+                            {project.name || 'Project'}
+                        </h1>
+                        <button 
+                            className="flex gap-2 items-center text-white bg-blue-600 px-3 py-1.5 rounded-lg hover:bg-blue-700 transition-colors text-sm shadow-sm" 
+                            onClick={() => setIsModalOpen(true)}
+                        >
+                            <i className="ri-user-add-line"></i>
+                            <span>Add collaborator</span>
+                        </button>
+                    </div>
+                    <button 
+                        onClick={() => setIsSidePanelOpen(!isSidePanelOpen)} 
+                        className={`p-2 text-white rounded-lg ${isSidePanelOpen ? 'bg-slate-600' : 'hover:bg-slate-600'} transition-colors`}
+                        title="Show collaborators"
+                    >
+                        <i className="ri-group-line text-lg"></i>
                     </button>
                 </header>
 
-                <div className="conversation-area pt-4 pb-16 flex-grow flex flex-col h-full relative">
+                <div className="conversation-area pt-3 pb-16 flex-grow flex flex-col h-full relative">
                     <div 
                         ref={messageBoxRef}
-                        className="message-box p-3 flex-grow flex flex-col gap-4 overflow-auto max-h-full scrollbar-hide"
+                        className="message-box px-3 py-2 flex-grow flex flex-col gap-4 overflow-auto max-h-full scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-slate-800"
                     >
+                        {messages.length === 0 && (
+                            <div className="flex items-center justify-center h-full text-slate-400">
+                                <div className="text-center p-6 bg-slate-750 rounded-lg max-w-xs">
+                                    <i className="ri-chat-3-line text-4xl mb-3"></i>
+                                    <p className="text-sm">No messages yet. Start the conversation!</p>
+                                </div>
+                            </div>
+                        )}
+                        
                         {messages.map((msg, index) => {
                             const isOwnMessage = msg.sender._id === user._id.toString();
                             return (
@@ -202,14 +243,23 @@ const Project = () => {
                                         ${isOwnMessage 
                                             ? 'ml-auto bg-blue-600 text-white max-w-xs' 
                                             : msg.sender._id === 'ai'
-                                                ? 'mr-auto bg-slate-700 text-white max-w-md' 
+                                                ? 'mr-auto bg-slate-700 text-white max-w-md w-full' 
                                                 : 'mr-auto bg-slate-600 text-white max-w-xs'
                                         }`}
                                 >
-                                    <small className="opacity-75 text-xs px-4 pt-3 pb-1 font-medium">
-                                        {isOwnMessage ? 'Me' : msg.sender.email || 'AI Assistant'}
-                                    </small>
-                                    <div className="text-sm leading-relaxed px-4 pb-3 pt-1">
+                                    <div className="px-4 py-2 border-b border-opacity-20 border-slate-500 flex items-center gap-2">
+                                        <div className="w-6 h-6 rounded-full bg-slate-500 flex items-center justify-center overflow-hidden flex-shrink-0">
+                                            {msg.sender._id === 'ai' ? (
+                                                <i className="ri-robot-line text-xs"></i>
+                                            ) : (
+                                                <i className="ri-user-line text-xs"></i>
+                                            )}
+                                        </div>
+                                        <span className="text-xs font-medium truncate">
+                                            {isOwnMessage ? 'Me' : msg.sender._id === 'ai' ? 'AI Assistant' : truncateEmail(msg.sender.email)}
+                                        </span>
+                                    </div>
+                                    <div className="text-sm leading-relaxed px-4 py-3">
                                         {msg.sender._id === 'ai' 
                                             ? WriteAiMessage(msg.message) 
                                             : <p className="whitespace-pre-wrap">{msg.message}</p>
@@ -220,7 +270,7 @@ const Project = () => {
                         })}
                     </div>
 
-                    <div className="inputField w-full flex absolute bottom-0 bg-slate-700 p-3 border-t border-slate-600">
+                    <div className="inputField w-full flex absolute bottom-0 bg-slate-700 p-3 border-t border-slate-600 shadow-lg">
                         <input
                             value={message}
                             onChange={(e) => setMessage(e.target.value)}
@@ -230,13 +280,14 @@ const Project = () => {
                                     send();
                                 }
                             }}
-                            className="p-3 px-4 border-none outline-none flex-grow text-lg rounded-lg shadow-sm bg-slate-600 text-white"
+                            className="p-3 px-4 border-none outline-none flex-grow text-base rounded-l-lg bg-slate-600 text-white placeholder-slate-400"
                             type="text"
-                            placeholder="Enter message"
+                            placeholder="Type your message..."
                         />
                         <button
                             onClick={send}
-                            className="px-5 bg-blue-500 text-white rounded-lg ml-2 shadow-sm hover:bg-blue-600 transition-colors"
+                            className="px-5 bg-blue-600 text-white rounded-r-lg shadow-sm hover:bg-blue-700 transition-colors disabled:bg-blue-400 disabled:cursor-not-allowed"
+                            disabled={message.trim() === ''}
                         >
                             <i className="ri-send-plane-fill"></i>
                         </button>
@@ -247,11 +298,18 @@ const Project = () => {
             {/* Right Section - Code Editor */}
             <section className="right bg-slate-900 flex-grow h-full flex">
                 {/* Explorer */}
-                <div className="explorer h-full max-w-64 min-w-52 bg-slate-850 border-r border-slate-700">
-                    <div className="file-tree-header p-3 px-4 bg-slate-800 border-b border-slate-700">
+                <div className="explorer h-full w-60 flex-shrink-0 bg-slate-850 border-r border-slate-700 flex flex-col">
+                    <div className="file-tree-header p-3 px-4 bg-slate-800 border-b border-slate-700 flex items-center">
+                        <i className="ri-folder-line mr-2 text-blue-400"></i>
                         <h3 className="text-white font-medium">Project Files</h3>
                     </div>
-                    <div className="file-tree w-full p-2">
+                    <div className="file-tree w-full p-2 overflow-y-auto flex-grow">
+                        {Object.keys(fileTree).length === 0 && (
+                            <div className="text-center py-8 text-slate-400">
+                                <i className="ri-file-list-line text-3xl mb-2"></i>
+                                <p className="text-sm">No files yet</p>
+                            </div>
+                        )}
                         {Object.keys(fileTree).map((file, index) => (
                             <button
                                 key={index}
@@ -259,28 +317,42 @@ const Project = () => {
                                     setCurrentFile(file);
                                     setOpenFiles([...new Set([...openFiles, file])]);
                                 }}
-                                className="tree-element cursor-pointer p-2 px-4 flex items-center gap-2 bg-slate-800 w-full hover:bg-slate-700 transition-colors text-white rounded mb-1"
+                                className={`tree-element cursor-pointer p-2 px-3 flex items-center gap-2 w-full hover:bg-slate-750 transition-colors text-white rounded mb-1 ${currentFile === file ? 'bg-slate-750' : ''}`}
                             >
-                                <i className="ri-file-code-line text-blue-400"></i>
-                                <p className="font-medium text-sm">{file}</p>
+                                <i className={`${file.endsWith('.js') || file.endsWith('.jsx') 
+                                    ? 'ri-javascript-line text-yellow-400' 
+                                    : file.endsWith('.css') 
+                                    ? 'ri-css3-line text-blue-400'
+                                    : file.endsWith('.html')
+                                    ? 'ri-html5-line text-orange-400'
+                                    : 'ri-file-code-line text-slate-400'
+                                }`}></i>
+                                <p className="font-medium text-sm truncate">{file}</p>
                             </button>
                         ))}
                     </div>
                 </div>
 
                 {/* Code Editor */}
-                <div className="code-editor flex flex-col flex-grow h-full shrink bg-slate-850">
-                    <div className="top flex justify-between w-full p-2 bg-slate-800 border-b border-slate-700">
-                        <div className="files flex overflow-x-auto scrollbar-hide">
+                <div className="code-editor flex flex-col flex-grow h-full shrink bg-slate-850 overflow-hidden">
+                    <div className="tabs flex justify-between w-full p-2 bg-slate-800 border-b border-slate-700 shadow-sm">
+                        <div className="files flex overflow-x-auto scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-transparent">
                             {openFiles.map((file, index) => (
                                 <button
                                     key={index}
                                     onClick={() => setCurrentFile(file)}
-                                    className={`open-file cursor-pointer p-2 px-4 flex items-center w-fit gap-2 rounded-lg mr-2 text-white
+                                    className={`open-file cursor-pointer p-2 px-4 flex items-center whitespace-nowrap gap-2 rounded-lg mr-2 text-white
                                         ${currentFile === file ? 'bg-slate-600' : 'bg-slate-700 hover:bg-slate-600'}`}
                                 >
-                                    <i className="ri-file-code-line text-white-400"></i>
-                                    <p className="font-medium text-sm whitespace-nowrap">{file}</p>
+                                    <i className={`${file.endsWith('.js') || file.endsWith('.jsx') 
+                                        ? 'ri-javascript-line text-yellow-400' 
+                                        : file.endsWith('.css') 
+                                        ? 'ri-css3-line text-blue-400'
+                                        : file.endsWith('.html')
+                                        ? 'ri-html5-line text-orange-400'
+                                        : 'ri-file-code-line text-slate-400'
+                                    }`}></i>
+                                    <p className="font-medium text-sm">{file}</p>
                                     {currentFile === file && (
                                         <button 
                                             className="ml-2 opacity-60 hover:opacity-100"
@@ -335,7 +407,7 @@ const Project = () => {
                                         console.error('Failed to run project:', err);
                                     }
                                 }}
-                                className="p-2 px-4 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center gap-2"
+                                className="p-2 px-4 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 shadow-sm"
                                 disabled={isWebContainerLoading}
                             >
                                 {isWebContainerLoading ? (
@@ -346,18 +418,18 @@ const Project = () => {
                                 ) : (
                                     <>
                                         <i className="ri-play-fill"></i>
-                                        <span>Run</span>
+                                        <span>Run Project</span>
                                     </>
                                 )}
                             </button>
                         </div>
                     </div>
-                    <div className="bottom flex flex-grow max-w-full shrink overflow-auto">
+                    <div className="bottom flex flex-grow max-w-full shrink overflow-hidden">
                         {fileTree[currentFile] ? (
-                            <div className="code-editor-area h-full overflow-auto flex-grow bg-slate-900 p-4">
+                            <div className="code-editor-area h-full overflow-auto flex-grow bg-slate-900 p-4 w-full">
                                 <pre className="hljs h-full">
                                     <code
-                                        className="hljs h-full outline-none text-white"
+                                        className="hljs h-full outline-none text-white font-mono text-sm"
                                         contentEditable
                                         suppressContentEditableWarning
                                         onBlur={(e) => {
@@ -374,7 +446,16 @@ const Project = () => {
                                             saveFileTree(ft);
                                         }}
                                         dangerouslySetInnerHTML={{
-                                            __html: hljs.highlight('javascript', fileTree[currentFile].file.contents).value,
+                                            __html: hljs.highlight(
+                                                currentFile.endsWith('.js') || currentFile.endsWith('.jsx') 
+                                                    ? 'javascript' 
+                                                    : currentFile.endsWith('.css') 
+                                                    ? 'css'
+                                                    : currentFile.endsWith('.html')
+                                                    ? 'html'
+                                                    : 'javascript',
+                                                fileTree[currentFile].file.contents
+                                            ).value,
                                         }}
                                         style={{
                                             whiteSpace: 'pre-wrap',
@@ -386,9 +467,12 @@ const Project = () => {
                             </div>
                         ) : (
                             <div className="flex items-center justify-center h-full w-full bg-slate-900 text-slate-400">
-                                <div className="text-center">
-                                    <i className="ri-file-code-line text-6xl mb-4"></i>
-                                    <p className="text-lg">Select a file to edit</p>
+                                <div className="text-center bg-slate-850 p-8 rounded-xl shadow-lg">
+                                    <i className="ri-code-box-line text-6xl mb-4 text-slate-500"></i>
+                                    <h3 className="text-xl font-medium text-white mb-2">No File Selected</h3>
+                                    <p className="text-sm text-slate-400 max-w-xs">
+                                        Select a file from the project explorer or create a new file to start coding
+                                    </p>
                                 </div>
                             </div>
                         )}
@@ -397,62 +481,103 @@ const Project = () => {
 
                 {/* Iframe for Web Preview */}
                 {iframeUrl && webContainer && (
-                    <div className="flex min-w-96 flex-col h-full border-l border-slate-700 bg-slate-900">
-                        <div className="address-bar p-2 bg-slate-800 border-b border-slate-700">
-                            <input
-                                type="text"
-                                onChange={(e) => setIframeUrl(e.target.value)}
-                                value={iframeUrl}
-                                className="w-full p-2 px-4 bg-slate-700 rounded-lg outline-none text-white"
-                            />
+                    <div className="flex min-w-96 w-96 flex-col h-full border-l border-slate-700 bg-white flex-shrink-0">
+                        <div className="address-bar p-2 bg-slate-800 border-b border-slate-700 shadow-sm">
+                            <div className="relative w-full">
+                                <i className="ri-global-line absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400"></i>
+                                <input
+                                    type="text"
+                                    onChange={(e) => setIframeUrl(e.target.value)}
+                                    value={iframeUrl}
+                                    className="w-full p-2 pl-9 pr-4 bg-slate-700 rounded-lg outline-none text-white text-sm font-mono"
+                                />
+                                <button 
+                                    onClick={() => {
+                                        if (iframeUrl) window.open(iframeUrl, '_blank');
+                                    }}
+                                    className="absolute right-2 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-white"
+                                    title="Open in new tab"
+                                >
+                                    <i className="ri-external-link-line"></i>
+                                </button>
+                            </div>
                         </div>
-                        <iframe src={iframeUrl} className="w-full h-full"></iframe>
+                        <iframe src={iframeUrl} className="w-full h-full bg-white"></iframe>
                     </div>
                 )}
             </section>
 
             {/* Modal for Adding Collaborators */}
             {isModalOpen && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-slate-800 p-4 rounded-lg w-96 max-w-full relative">
-                        <header className="flex justify-between items-center mb-4">
-                            <h2 className="text-xl font-semibold text-white">Select Users</h2>
-                            <button onClick={() => setIsModalOpen(false)} className="p-2 text-white hover:bg-slate-700 rounded-full">
-                                <i className="ri-close-fill text-xl"></i>
+                <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
+                    <div className="bg-slate-800 p-0 rounded-xl w-96 max-w-full shadow-2xl overflow-hidden">
+                        <header className="flex justify-between items-center p-4 bg-slate-750 border-b border-slate-700">
+                            <h2 className="text-lg font-semibold text-white">Add Collaborators</h2>
+                            <button 
+                                onClick={() => setIsModalOpen(false)} 
+                                className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-700 rounded-full transition-colors"
+                            >
+                                <i className="ri-close-line text-xl"></i>
                             </button>
                         </header>
-                        <input
-                            type="text"
-                            placeholder="Search users..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full p-2 px-4 mb-4 bg-slate-700 rounded-lg outline-none text-white"
-                        />
-                        <div className="users-list flex flex-col gap-2 mb-16 max-h-96 overflow-auto">
+                        
+                        <div className="p-4 border-b border-slate-700">
+                            <div className="relative">
+                                <i className="ri-search-line absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400"></i>
+                                <input
+                                    type="text"
+                                    placeholder="Search by email..."
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    className="w-full p-2 pl-9 pr-4 bg-slate-700 rounded-lg outline-none text-white placeholder-slate-400"
+                                />
+                            </div>
+                        </div>
+                        
+                        <div className="users-list flex flex-col gap-1 py-2 max-h-64 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-slate-800">
                             {users
-                                .filter((user) => user.email.toLowerCase().includes(searchQuery.toLowerCase()))
+                                .filter((user) => 
+                                    user.email.toLowerCase().includes(searchQuery.toLowerCase()) && 
+                                    user._id !== project.owner && 
+                                    !(project.users?.includes(user._id))
+                                )
                                 .map((user) => (
                                     <div
                                         key={user._id}
                                         className={`user cursor-pointer hover:bg-slate-700 ${
-                                            selectedUserId.has(user._id) ? 'bg-slate-600' : ''
-                                        } p-2 flex gap-3 items-center rounded-lg text-white`}
+                                            selectedUserId.has(user._id) ? 'bg-slate-700' : ''
+                                        } px-4 py-3 flex gap-3 items-center text-white transition-colors`}
                                         onClick={() => handleUserClick(user._id)}
                                     >
-                                        <div className="aspect-square relative rounded-full w-10 h-10 flex items-center justify-center bg-slate-500">
-                                            <i className="ri-user-fill text-xl"></i>
+                                        <div className="aspect-square relative rounded-full w-9 h-9 flex items-center justify-center bg-slate-600 flex-shrink-0">
+                                            <i className="ri-user-fill text-lg"></i>
                                         </div>
-                                        <h1 className="font-medium text-sm">{user.email}</h1>
-                                        {selectedUserId.has(user._id) && (
-                                            <i className="ri-check-line ml-auto text-green-400"></i>
+                                        <div className="flex-grow min-w-0">
+                                            <h1 className="font-medium text-sm truncate">{user.email}</h1>
+                                        </div>
+                                        {selectedUserId.has(user._id) ? (
+                                            <i className="ri-checkbox-circle-fill text-lg text-green-400 flex-shrink-0"></i>
+                                        ) : (
+                                            <i className="ri-checkbox-blank-circle-line text-lg text-slate-500 flex-shrink-0"></i>
                                         )}
                                     </div>
                                 ))}
-                            {users.filter((user) => user.email.toLowerCase().includes(searchQuery.toLowerCase())).length === 0 && (
-                                <div className="text-center text-slate-400 py-4">No users found</div>
+                            
+                            {users.filter((user) => 
+                                user.email.toLowerCase().includes(searchQuery.toLowerCase()) && 
+                                user._id !== project.owner && 
+                                !(project.users?.includes(user._id))
+                            ).length === 0 && (
+                                <div className="text-center text-slate-400 py-6 px-4">
+                                    {searchQuery ? 
+                                        <p>No matching users found</p> : 
+                                        <p>No users available to add</p>
+                                    }
+                                </div>
                             )}
                         </div>
-                        <div className="absolute bottom-4 left-0 right-0 px-4 flex justify-between">
+                        
+                        <div className="p-4 bg-slate-750 flex justify-between items-center shadow-lg">
                             <button
                                 onClick={() => setIsModalOpen(false)}
                                 className="px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600 transition-colors"
@@ -461,10 +586,19 @@ const Project = () => {
                             </button>
                             <button
                                 onClick={addCollaborators}
-                                className={`px-4 py-2 ${selectedUserId.size > 0 ? 'bg-blue-500 hover:bg-blue-600' : 'bg-blue-400 cursor-not-allowed'} text-white rounded-lg transition-colors`}
+                                className={`px-4 py-2 ${
+                                    selectedUserId.size > 0 
+                                    ? 'bg-blue-600 hover:bg-blue-700' 
+                                    : 'bg-blue-500 opacity-50 cursor-not-allowed'
+                                } text-white rounded-lg transition-colors flex items-center gap-2`}
                                 disabled={selectedUserId.size === 0}
                             >
-                                Add {selectedUserId.size > 0 ? `(${selectedUserId.size})` : ''}
+                                <span>Add</span>
+                                {selectedUserId.size > 0 && (
+                                    <span className="bg-blue-500 text-xs px-1.5 py-0.5 rounded-full">
+                                        {selectedUserId.size}
+                                    </span>
+                                )}
                             </button>
                         </div>
                     </div>
@@ -473,27 +607,63 @@ const Project = () => {
 
             {/* Side Panel for Collaborators */}
             {isSidePanelOpen && (
-                <div className="fixed right-0 top-0 h-full w-64 bg-slate-800 border-l border-slate-700 z-40">
-                    <div className="p-4 border-b border-slate-700">
+                <div className="fixed right-0 top-0 h-full w-72 bg-slate-800 border-l border-slate-700 z-40 shadow-xl flex flex-col">
+                    <div className="p-4 border-b border-slate-700 bg-slate-750">
                         <div className="flex justify-between items-center">
-                            <h3 className="text-white font-semibold">Collaborators</h3>
-                            <button onClick={() => setIsSidePanelOpen(false)} className="text-white">
+                            <h3 className="text-white font-semibold flex items-center gap-2">
+                                <i className="ri-team-line text-blue-400"></i>
+                                <span>Project Collaborators</span>
+                            </h3>
+                            <button 
+                                onClick={() => setIsSidePanelOpen(false)} 
+                                className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-700 rounded-md transition-colors"
+                            >
                                 <i className="ri-close-line"></i>
                             </button>
                         </div>
                     </div>
-                    <div className="p-4">
-                        {project.users && project.users.map((collaboratorId, index) => (
-                            <div key={index} className="flex items-center gap-3 mb-3">
-                                <div className="aspect-square relative rounded-full w-8 h-8 flex items-center justify-center bg-slate-600">
-                                    <i className="ri-user-fill"></i>
+                    
+                    <div className="flex-grow overflow-y-auto scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-slate-800">
+                        {/* Project Owner */}
+                        <div className="p-4 border-b border-slate-700">
+                            <h4 className="text-xs uppercase text-slate-400 font-medium mb-3">Project Owner</h4>
+                            <div className="flex items-center gap-3">
+                                <div className="aspect-square relative rounded-full w-10 h-10 flex items-center justify-center bg-blue-600 flex-shrink-0">
+                                    <i className="ri-user-fill text-lg"></i>
                                 </div>
-                                <span className="text-white text-sm">{getUserEmailById(collaboratorId)}</span>
+                                <div className="flex-grow min-w-0">
+                                    <span className="text-white text-sm font-medium block truncate">
+                                        {getUserEmailById(project.owner)}
+                                    </span>
+                                    <span className="text-xs text-slate-400">Owner</span>
+                                </div>
                             </div>
-                        ))}
-                        {(!project.users || project.users.length === 0) && (
-                            <p className="text-slate-400 text-sm">No collaborators yet</p>
-                        )}
+                        </div>
+                        
+                        {/* Collaborators List */}
+                                               {/* Collaborators List */}
+                                               <div className="p-4">
+                            <h4 className="text-xs uppercase text-slate-400 font-medium mb-3">Collaborators</h4>
+                            {project.users && project.users.length > 0 ? (
+                                project.users.map((userId) => (
+                                    <div key={userId} className="flex items-center gap-3 mb-3">
+                                        <div className="aspect-square relative rounded-full w-10 h-10 flex items-center justify-center bg-slate-600 flex-shrink-0">
+                                            <i className="ri-user-fill text-lg"></i>
+                                        </div>
+                                        <div className="flex-grow min-w-0">
+                                            <span className="text-white text-sm font-medium block truncate">
+                                                {getUserEmailById(userId)}
+                                            </span>
+                                            <span className="text-xs text-slate-400">Collaborator</span>
+                                        </div>
+                                    </div>
+                                ))
+                            ) : (
+                                <div className="text-center text-slate-400 py-4">
+                                    <p>No collaborators added yet.</p>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
             )}
