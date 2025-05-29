@@ -11,7 +11,6 @@ router.post('/create',
     body('name').isString().withMessage('Name is required'),
     projectController.createProject
 )
-
 router.get('/all',
     authMiddleWare.authUser,
     projectController.getAllProject

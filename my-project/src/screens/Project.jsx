@@ -197,103 +197,101 @@ const Project = () => {
     return (
         <main className="h-screen w-screen flex bg-slate-900 overflow-hidden">
             {/* Left Section - Chat */}
-            <section className="left relative flex flex-col h-screen min-w-96 bg-slate-800 border-r border-slate-700">
-                <header className="flex justify-between items-center p-3 px-4 w-full bg-slate-700 border-b border-slate-600 shadow-sm">
-                    <div className="flex items-center">
-                        <h1 className="text-white font-semibold mr-4 truncate max-w-40">
-                            {project.name || 'Project'}
-                        </h1>
-                        <button 
-                            className="flex gap-2 items-center text-white bg-blue-600 px-3 py-1.5 rounded-lg hover:bg-blue-700 transition-colors text-sm shadow-sm" 
-                            onClick={() => setIsModalOpen(true)}
-                        >
-                            <i className="ri-user-add-line"></i>
-                            <span>Add collaborator</span>
-                        </button>
-                    </div>
-                    <button 
-                        onClick={() => setIsSidePanelOpen(!isSidePanelOpen)} 
-                        className={`p-2 text-white rounded-lg ${isSidePanelOpen ? 'bg-slate-600' : 'hover:bg-slate-600'} transition-colors`}
-                        title="Show collaborators"
+            <section className="relative flex flex-col h-screen min-w-[24rem] max-w-sm bg-slate-800 border-r border-slate-700 shadow-lg">
+            {/* Header */}
+            <header className="flex justify-between items-center p-4 bg-slate-700 border-b border-slate-600">
+                <div className="flex items-center gap-3">
+                    <h1 className="text-white font-semibold truncate max-w-[10rem]">
+                        {project.name || 'Project'}
+                    </h1>
+                    <button
+                        className="flex gap-2 items-center text-white bg-blue-600 px-3 py-1.5 rounded-lg hover:bg-blue-700 transition"
+                        onClick={() => setIsModalOpen(true)}
                     >
-                        <i className="ri-group-line text-lg"></i>
+                        <i className="ri-user-add-line"></i>
+                        <span className="text-sm">Add</span>
                     </button>
-                </header>
+                </div>
+                <button
+                    onClick={() => setIsSidePanelOpen(!isSidePanelOpen)}
+                    className={`p-2 text-white rounded-lg transition ${isSidePanelOpen ? 'bg-slate-600' : 'hover:bg-slate-600'}`}
+                    title="Show collaborators"
+                >
+                    <i className="ri-group-line text-lg"></i>
+                </button>
+            </header>
 
-                <div className="conversation-area pt-3 pb-16 flex-grow flex flex-col h-full relative">
-                    <div 
-                        ref={messageBoxRef}
-                        className="message-box px-3 py-2 flex-grow flex flex-col gap-4 overflow-auto max-h-full scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-slate-800"
-                    >
-                        {messages.length === 0 && (
-                            <div className="flex items-center justify-center h-full text-slate-400">
-                                <div className="text-center p-6 bg-slate-750 rounded-lg max-w-xs">
-                                    <i className="ri-chat-3-line text-4xl mb-3"></i>
-                                    <p className="text-sm">No messages yet. Start the conversation!</p>
+            {/* Messages Area */}
+            <div className="flex-grow relative pt-3 pb-28 px-4 overflow-auto scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-slate-800">
+                {messages.length === 0 ? (
+                    <div className="flex items-center justify-center h-full text-slate-400">
+                        <div className="text-center p-6 bg-slate-750 rounded-lg max-w-xs">
+                            <i className="ri-chat-3-line text-4xl mb-3"></i>
+                            <p className="text-sm">No messages yet. Start the conversation!</p>
+                        </div>
+                    </div>
+                ) : (
+                    messages.map((msg, index) => {
+                        const isOwnMessage = msg.sender._id === user._id.toString();
+                        const isAI = msg.sender._id === 'ai';
+                        return (
+                            <div
+                                key={index}
+                                className={`message flex flex-col rounded-lg shadow-sm mb-4 w-fit max-w-[80%] ${
+                                    isOwnMessage
+                                        ? 'ml-auto bg-blue-600 text-white'
+                                        : isAI
+                                        ? 'mr-auto bg-slate-700 text-white'
+                                        : 'mr-auto bg-slate-600 text-white'
+                                }`}
+                            >
+                                <div className="px-4 py-2 border-b border-opacity-20 border-slate-500 flex items-center gap-2">
+                                    <div className="w-6 h-6 rounded-full bg-slate-500 flex items-center justify-center">
+                                        {isAI ? (
+                                            <i className="ri-robot-line text-xs" />
+                                        ) : (
+                                            <i className="ri-user-line text-xs" />
+                                        )}
+                                    </div>
+                                    <span className="text-xs font-medium truncate">
+                                        {isOwnMessage ? 'Me' : isAI ? 'AI Assistant' : truncateEmail(msg.sender.email)}
+                                    </span>
+                                </div>
+                                <div className="px-4 py-3 text-sm whitespace-pre-wrap">
+                                    {isAI ? WriteAiMessage(msg.message) : <p>{msg.message}</p>}
                                 </div>
                             </div>
-                        )}
-                        
-                        {messages.map((msg, index) => {
-                            const isOwnMessage = msg.sender._id === user._id.toString();
-                            return (
-                                <div
-                                    key={index}
-                                    className={`message flex flex-col p-0 rounded-lg shadow-sm
-                                        ${isOwnMessage 
-                                            ? 'ml-auto bg-blue-600 text-white max-w-xs' 
-                                            : msg.sender._id === 'ai'
-                                                ? 'mr-auto bg-slate-700 text-white max-w-md w-full' 
-                                                : 'mr-auto bg-slate-600 text-white max-w-xs'
-                                        }`}
-                                >
-                                    <div className="px-4 py-2 border-b border-opacity-20 border-slate-500 flex items-center gap-2">
-                                        <div className="w-6 h-6 rounded-full bg-slate-500 flex items-center justify-center overflow-hidden flex-shrink-0">
-                                            {msg.sender._id === 'ai' ? (
-                                                <i className="ri-robot-line text-xs"></i>
-                                            ) : (
-                                                <i className="ri-user-line text-xs"></i>
-                                            )}
-                                        </div>
-                                        <span className="text-xs font-medium truncate">
-                                            {isOwnMessage ? 'Me' : msg.sender._id === 'ai' ? 'AI Assistant' : truncateEmail(msg.sender.email)}
-                                        </span>
-                                    </div>
-                                    <div className="text-sm leading-relaxed px-4 py-3">
-                                        {msg.sender._id === 'ai' 
-                                            ? WriteAiMessage(msg.message) 
-                                            : <p className="whitespace-pre-wrap">{msg.message}</p>
-                                        }
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
+                        );
+                    })
+                )}
+            </div>
 
-                    <div className="inputField w-full flex absolute bottom-0 bg-slate-700 p-3 border-t border-slate-600 shadow-lg">
-                        <input
-                            value={message}
-                            onChange={(e) => setMessage(e.target.value)}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter' && !e.shiftKey) {
-                                    e.preventDefault();
-                                    send();
-                                }
-                            }}
-                            className="p-3 px-4 border-none outline-none flex-grow text-base rounded-l-lg bg-slate-600 text-white placeholder-slate-400"
-                            type="text"
-                            placeholder="Type your message..."
-                        />
-                        <button
-                            onClick={send}
-                            className="px-5 bg-blue-600 text-white rounded-r-lg shadow-sm hover:bg-blue-700 transition-colors disabled:bg-blue-400 disabled:cursor-not-allowed"
-                            disabled={message.trim() === ''}
-                        >
-                            <i className="ri-send-plane-fill"></i>
-                        </button>
-                    </div>
+            {/* Input Area */}
+            <div className="absolute bottom-0 left-0 w-full p-4 bg-slate-700 border-t border-slate-600">
+                <div className="flex items-center gap-2">
+                    <input
+                        value={message}
+                        onChange={(e) => setMessage(e.target.value)}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter' && !e.shiftKey) {
+                                e.preventDefault();
+                                send();
+                            }
+                        }}
+                        className="flex-grow p-4 rounded-xl bg-slate-600 text-white placeholder-slate-400 text-base focus:ring-2 focus:ring-blue-500 outline-none"
+                        placeholder="Type your message..."
+                        type="text"
+                    />
+                    <button
+                        onClick={send}
+                        disabled={message.trim() === ''}
+                        className="p-4 px-5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition disabled:bg-blue-400 disabled:cursor-not-allowed"
+                    >
+                        <i className="ri-send-plane-fill text-lg"></i>
+                    </button>
                 </div>
-            </section>
+            </div>
+        </section>
 
             {/* Right Section - Code Editor */}
             <section className="right bg-slate-900 flex-grow h-full flex">
