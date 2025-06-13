@@ -652,7 +652,9 @@ const Project = () => {
                 {isRunning ? (
                   <>
                     <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                    <span>Running...</span>
+                    <span>
+  {project ? 'Running' : 'Run project'}
+</span>
                   </>
                 ) : (
                   <>
